@@ -6,13 +6,18 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowClientOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.serviceclient.WorkflowServiceStubsOptions;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Disposes;
+import jakarta.enterprise.inject.Produces;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientBuilder;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.util.Optional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 /**
  * Configuration class for Temporal workflow client beans.
@@ -22,22 +27,26 @@ import org.springframework.context.annotation.Configuration;
  * are provided, it enables mTLS for Temporal Cloud. Otherwise, it connects to a local Temporal
  * server.
  */
-@Configuration
+@ApplicationScoped
 public class TemporalConfig {
 
   private static final Logger logger = LoggerFactory.getLogger(TemporalConfig.class);
 
-  @Value("${temporal.service-address}")
+  @Inject
+  @ConfigProperty(name = "temporal.service-address")
   private String serviceAddress;
 
-  @Value("${temporal.namespace}")
+  @Inject
+  @ConfigProperty(name = "temporal.namespace")
   private String namespace;
 
-  @Value("${temporal.cert-path:}")
-  private String certPath;
+  @Inject
+  @ConfigProperty(name = "temporal.cert-path")
+  private Optional<String> certPath;
 
-  @Value("${temporal.key-path:}")
-  private String keyPath;
+  @Inject
+  @ConfigProperty(name = "temporal.key-path")
+  private Optional<String> keyPath;
 
   /**
    * Creates a WorkflowServiceStubs bean for connecting to the Temporal server.
@@ -48,17 +57,18 @@ public class TemporalConfig {
    * @return WorkflowServiceStubs configured with the service address and optional mTLS
    * @throws Exception if mTLS configuration fails
    */
-  @Bean
+  @Produces
+  @ApplicationScoped
   public WorkflowServiceStubs workflowServiceStubs() throws Exception {
     WorkflowServiceStubsOptions.Builder optionsBuilder =
         WorkflowServiceStubsOptions.newBuilder().setTarget(serviceAddress);
 
     // Enable mTLS if cert paths are provided (Temporal Cloud)
-    if (certPath != null && !certPath.isEmpty() && keyPath != null && !keyPath.isEmpty()) {
+    if (certPath.isPresent() && keyPath.isPresent()) {
       logger.info("Configuring Temporal Cloud connection with mTLS to: {}", serviceAddress);
 
-      try (InputStream clientCert = new FileInputStream(certPath);
-          InputStream clientKey = new FileInputStream(keyPath)) {
+      try (InputStream clientCert = new FileInputStream(certPath.get());
+          InputStream clientKey = new FileInputStream(keyPath.get())) {
 
         SslContext sslContext =
             GrpcSslContexts.forClient().keyManager(clientCert, clientKey).build();
@@ -80,10 +90,44 @@ public class TemporalConfig {
    * @param workflowServiceStubs the service stubs to use for communication
    * @return WorkflowClient configured with the specified namespace
    */
-  @Bean
+  @Produces
+  @ApplicationScoped
   public WorkflowClient workflowClient(WorkflowServiceStubs workflowServiceStubs) {
     WorkflowClientOptions options =
         WorkflowClientOptions.newBuilder().setNamespace(namespace).build();
     return WorkflowClient.newInstance(workflowServiceStubs, options);
+  }
+
+  /**
+   * Creates a Jakarta REST Client bean.
+   *
+   * @return Jakarta REST Client
+   */
+  @Produces
+  @ApplicationScoped
+  public Client httpClient() {
+    return ClientBuilder.newClient();
+  }
+
+  /**
+   * Disposes the Jakarta REST Client.
+   *
+   * @param client the client to dispose
+   */
+  public void closeHttpClient(@Disposes Client client) {
+    if (client != null) {
+      client.close();
+    }
+  }
+
+  /**
+   * Disposes the WorkflowServiceStubs.
+   *
+   * @param stubs the stubs to dispose
+   */
+  public void closeWorkflowServiceStubs(@Disposes WorkflowServiceStubs stubs) {
+    if (stubs != null) {
+      stubs.shutdown();
+    }
   }
 }

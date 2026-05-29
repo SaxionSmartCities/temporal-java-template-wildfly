@@ -1,7 +1,6 @@
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.3.6'
-    id 'io.spring.dependency-management' version '1.1.7'
+    id 'war'
     id 'checkstyle'
     id 'com.github.spotbugs' version '6.4.8'
     id 'com.diffplug.spotless' version '8.1.0'
@@ -22,31 +21,37 @@ repositories {
 }
 
 dependencies {
-    // Spring Boot
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    // Jakarta EE 11 API
+    providedCompile 'jakarta.platform:jakarta.jakartaee-api:11.0.0'
+    
+    // MicroProfile Config API
+    providedCompile 'org.eclipse.microprofile.config:microprofile-config-api:3.1'
+
+    // REST Client Implementation for testing
+    testRuntimeOnly 'org.glassfish.jersey.core:jersey-client:3.1.9'
+    testRuntimeOnly 'org.glassfish.jersey.inject:jersey-hk2:3.1.9'
 
     // Temporal SDK
     implementation "io.temporal:temporal-sdk:${temporalVersion}"
     testImplementation "io.temporal:temporal-testing:${temporalVersion}"
 
-    // Validation
-    implementation 'jakarta.validation:jakarta.validation-api'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
-
-    // Lombok
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-    testCompileOnly 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
-
     // Testing
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+    
+    // Weld JUnit for CDI testing
+    testImplementation 'org.jboss.weld:weld-junit5:4.0.3.Final'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
     finalizedBy jacocoTestReport
+}
+
+tasks.named('war') {
+    archiveFileName = 'temporal-template.war'
 }
 
 // JaCoCo Configuration
@@ -61,11 +66,10 @@ jacocoTestReport {
         html.required = true
         csv.required = false
     }
-    // Exclude Spring Boot infrastructure and worker main classes from report
+    // Exclude Jakarta EE infrastructure and worker main classes from report
     afterEvaluate {
         classDirectories.setFrom(files(classDirectories.files.collect {
             fileTree(dir: it, exclude: [
-                'com/example/temporal/TemporalApplication.class',
                 'com/example/temporal/config/**',
                 'com/example/temporal/workflows/**/Worker.class',
                 'com/example/temporal/workflows/**/*Worker.class'
@@ -81,9 +85,8 @@ jacocoTestCoverageVerification {
             limit {
                 minimum = 0.80
             }
-            // Exclude Spring Boot infrastructure and worker main classes
+            // Exclude Jakarta EE infrastructure and worker main classes
             excludes = [
-                'com.example.temporal.TemporalApplication',
                 'com.example.temporal.config.*',
                 'com.example.temporal.workflows.**.Worker',
                 'com.example.temporal.workflows.**.*Worker'
@@ -94,7 +97,6 @@ jacocoTestCoverageVerification {
     afterEvaluate {
         classDirectories.setFrom(files(classDirectories.files.collect {
             fileTree(dir: it, exclude: [
-                'com/example/temporal/TemporalApplication.class',
                 'com/example/temporal/config/**',
                 'com/example/temporal/workflows/**/Worker.class',
                 'com/example/temporal/workflows/**/*Worker.class'
@@ -105,7 +107,7 @@ jacocoTestCoverageVerification {
 
 // Checkstyle Configuration
 checkstyle {
-    toolVersion = '10.18.2'
+    toolVersion = '13.4.2'
     configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
     maxWarnings = 0
 }
@@ -120,7 +122,7 @@ checkstyleTest {
 
 // SpotBugs Configuration
 spotbugs {
-    toolVersion = '4.8.6'
+    toolVersion = '4.9.8'
     excludeFilter = file("${rootDir}/config/spotbugs/exclude.xml")
 }
 

@@ -7,10 +7,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.example.temporal.TestConfig;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.testing.TestWorkflowEnvironment;
 import io.temporal.worker.Worker;
+import jakarta.enterprise.inject.spi.CDI;
+import org.jboss.weld.junit5.auto.AddBeanClasses;
+import org.jboss.weld.junit5.auto.EnableAutoWeld;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +24,8 @@ import org.junit.jupiter.api.Test;
  *
  * <p>These tests use TestWorkflowEnvironment to test the workflow with mocked activities.
  */
+@EnableAutoWeld
+@AddBeanClasses({TestConfig.class})
 class HttpWorkflowTest {
 
   private TestWorkflowEnvironment testEnv;
@@ -28,7 +34,7 @@ class HttpWorkflowTest {
 
   @BeforeEach
   void setUp() {
-    testEnv = TestWorkflowEnvironment.newInstance();
+    testEnv = CDI.current().select(TestWorkflowEnvironment.class).get();
     worker = testEnv.newWorker(HttpWorker.TASK_QUEUE);
     worker.registerWorkflowImplementationTypes(HttpWorkflowImpl.class);
     client = testEnv.getWorkflowClient();
@@ -36,7 +42,7 @@ class HttpWorkflowTest {
 
   @AfterEach
   void tearDown() {
-    testEnv.close();
+    // Environment is closed by TestConfig @Disposes
   }
 
   @Test
@@ -50,7 +56,7 @@ class HttpWorkflowTest {
     int statusCode = 200;
 
     HttpGetActivityOutput activityOutput = new HttpGetActivityOutput(responseText, statusCode);
-    when(mockActivities.httpGet(any(HttpGetActivityInput.class))).thenReturn(activityOutput);
+    when(mockActivities.httpGet(any())).thenReturn(activityOutput);
 
     testEnv.start();
 
@@ -81,7 +87,7 @@ class HttpWorkflowTest {
 
     String testUrl = "https://test.com/api";
     HttpGetActivityOutput activityOutput = new HttpGetActivityOutput("Response", 201);
-    when(mockActivities.httpGet(any(HttpGetActivityInput.class))).thenReturn(activityOutput);
+    when(mockActivities.httpGet(any())).thenReturn(activityOutput);
 
     testEnv.start();
 

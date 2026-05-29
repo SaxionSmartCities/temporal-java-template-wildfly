@@ -10,22 +10,23 @@ This is a **Temporal Java SDK project template** designed for building reliable,
 - Type-safe workflow orchestration
 - Comprehensive testing patterns
 - Enterprise-grade code quality
-- Spring Boot integration
+- Jakarta EE 11 integration
 
 ## Tech Stack
 
 Understanding these technologies is essential for working with this codebase:
 
 ### Core Technologies
-- **Temporal SDK (1.25.2)**: Orchestration engine for building resilient distributed systems
+- **Temporal SDK (1.35.0)**: Orchestration engine for building resilient distributed systems
 - **Java 21**: LTS version with modern language features (records, pattern matching, virtual threads)
-- **Spring Boot 3.3.6**: Application framework and dependency injection
-- **Gradle 8.11.1**: Build automation with Groovy DSL
+- **Jakarta EE 11**: Enterprise application framework (CDI, Jakarta REST)
+- **Wildfly 40.0.0.Final**: Application server implementing Jakarta EE 11 
+- **Gradle 9.5.1**: Build automation with Groovy DSL
 
 ### Data & HTTP
 - **Jackson**: JSON serialization/deserialization (Temporal's default)
 - **Java Records**: Immutable data models for workflow inputs/outputs
-- **RestTemplate**: HTTP client for activities
+- **Jakarta REST Client**: HTTP client for activities
 - **Jakarta Validation**: Input validation annotations
 
 ### Code Quality
@@ -40,7 +41,6 @@ Understanding these technologies is essential for working with this codebase:
 - **TestWorkflowEnvironment**: Temporal's in-memory testing with time-skipping
 
 ### Development Tools
-- **Lombok**: Reduce boilerplate (used sparingly, prefer records)
 - **Pre-commit**: Git hooks for code quality
 - **Gradle Toolchains**: Automatic JDK provisioning
 
@@ -51,9 +51,13 @@ temporal-java-template/
 ├── src/
 │   ├── main/
 │   │   ├── java/com/example/temporal/
-│   │   │   ├── TemporalApplication.java          # Spring Boot entry point
 │   │   │   ├── config/
-│   │   │   │   └── TemporalConfig.java           # Temporal client beans
+│   │   │   │   ├── RestApplication.java                 # Jakarta EE Rest Application
+│   │   │   │   ├── Resources.java                       # CDI Producers
+│   │   │   │   ├── TemporalConfig.java                  # Temporal client beans
+│   │   │   │   └── TemporalWorkerManager.java           # Worker lifecycle management
+│   │   │   ├── api/                                     # REST Endpoints
+│   │   │   │   └── *.java
 │   │   │   └── workflows/
 │   │   │       ├── http/                         # HTTP workflow package
 │   │   │       │   ├── HttpWorkflow.java         # Workflow interface
@@ -64,8 +68,13 @@ temporal-java-template/
 │   │   │       │   └── *.java                    # Data models (records)
 │   │   │       └── crawler/                      # Crawler workflow package
 │   │   │           └── [similar structure]
-│   │   └── resources/
-│   │       └── application.yml                   # Configuration
+│   │   ├── resources/
+│   │   │   ├── META-INF/
+│   │   │   │   ├── beans.xml                     # CDI enablement
+│   │   │   │   └── microprofile-config.properties # MicroProfile configuration
+│   │   └── webapp/
+│   │       └── WEB-INF/
+│   │           └── jboss-deployment-structure.xml # Wildfly specific config
 │   └── test/
 │       └── java/com/example/temporal/
 │           ├── TestConfig.java                   # Test environment setup
@@ -86,7 +95,6 @@ temporal-java-template/
 ├── settings.gradle                               # Gradle settings
 ├── .pre-commit-config.yaml                       # Pre-commit hooks
 ├── README.md                                     # User documentation
-├── CLAUDE.md                                     # Claude Code assistant guide
 └── AGENTS.md                                     # This file
 
 ```
@@ -105,12 +113,12 @@ temporal-java-template/
 2. **Activities** (`*Activities.java`, `*ActivitiesImpl.java`)
    - Execute non-deterministic operations (HTTP, database, file I/O)
    - Can fail and retry automatically
-   - Injected with Spring beans (RestTemplate, repositories, etc.)
+   - Injected with Jakarta CDI-beans
    - Use standard logging (`LoggerFactory.getLogger()`)
 
 3. **Workers** (`*Worker.java`)
    - Poll task queues and execute workflows/activities
-   - Run separately from Spring Boot application
+   - Run preferably separately from Wildfly. For convenience run inside Wildfly
    - Configure thread pools for concurrent execution
    - Production workers often run in separate processes/containers
 
@@ -139,7 +147,7 @@ Math.random()                        // Non-deterministic!
 new Random().nextInt()               // Non-deterministic!
 LoggerFactory.getLogger()            // Wrong logger!
 Thread.sleep()                       // Blocks workflow!
-restTemplate.getForEntity()          // Direct I/O forbidden!
+client.target(url).request().get()   // Direct I/O forbidden!
 repository.save()                    // Direct I/O forbidden!
 ```
 
@@ -187,27 +195,30 @@ public record HttpWorkflowOutput(
 
 **Activity Interface & Implementation:**
 ```java
-// Interface
+// Activity interface
 @ActivityInterface
 public interface MyActivities {
   MyOutput doSomething(MyInput input);
 }
 
-// Implementation (Spring component)
-@Component
+// Activity implementation (Jakarta EE component)
+@ApplicationScoped
 public class MyActivitiesImpl implements MyActivities {
   private static final Logger logger = LoggerFactory.getLogger(MyActivitiesImpl.class);
-  private final RestTemplate restTemplate;
+  private final Client httpClient;
 
-  public MyActivitiesImpl(RestTemplate restTemplate) {
-    this.restTemplate = restTemplate;
+  @Inject
+  public MyActivitiesImpl(Client httpClient) {
+    this.httpClient = httpClient;
   }
 
   @Override
   public MyOutput doSomething(MyInput input) {
     logger.info("Processing: {}", input);
-    // Implementation with I/O operations
-    return new MyOutput("result");
+    // Implementation with I/O operations using Jakarta REST Client
+    try (Response response = httpClient.target("https://api.example.com").request().get()) {
+       return new MyOutput(response.readEntity(String.class));
+    }
   }
 }
 ```
@@ -242,6 +253,8 @@ public class MyWorkflowImpl implements MyWorkflow {
 ```
 
 **Worker:**
+Note: When started by Wildfly, the workers are started by the TemporalWorkerManager.
+
 ```java
 public class MyWorker {
   public static final String TASK_QUEUE = "my-task-queue";
@@ -267,26 +280,31 @@ public class MyWorker {
 ```java
 @ExtendWith(MockitoExtension.class)
 class MyActivitiesTest {
-  @Mock private RestTemplate restTemplate;
+  @Mock private Client httpClient;
+  @Mock private WebTarget webTarget;
+  @Mock private Invocation.Builder builder;
+  @Mock private Response response;
   private MyActivitiesImpl activities;
 
   @BeforeEach
   void setUp() {
-    activities = new MyActivitiesImpl(restTemplate);
+    activities = new MyActivitiesImpl(httpClient);
   }
 
   @Test
   void testDoSomething_Success() {
     // Arrange
-    when(restTemplate.getForEntity(anyString(), eq(String.class)))
-        .thenReturn(new ResponseEntity<>("response", HttpStatus.OK));
+    when(httpClient.target(anyString())).thenReturn(webTarget);
+    when(webTarget.request()).thenReturn(builder);
+    when(builder.get()).thenReturn(response);
+    when(response.readEntity(String.class)).thenReturn("mocked response");
 
     // Act
     MyOutput output = activities.doSomething(new MyInput("test"));
 
     // Assert
     assertNotNull(output);
-    verify(restTemplate).getForEntity(anyString(), eq(String.class));
+    verify(httpClient).target(anyString());
   }
 }
 ```
@@ -342,19 +360,19 @@ class MyWorkflowTest {
    - Workflows orchestrate, activities execute I/O
    - Workflows must be deterministic (no direct I/O, use `Workflow.*` methods)
    - Activities can fail and retry based on retry policies
-   - Workers run separately from the Spring Boot application
+   - Workers run separately from the Jakarta EE application
 
 2. **Follow Existing Patterns**
    - Use Java records for data models (not POJOs with Lombok)
-   - Activities are Spring components with dependency injection
-   - Workflows have NO Spring dependencies (they're serialized/replayed)
+   - Activities are CDI components (`@ApplicationScoped`) with dependency injection
+   - Workflows have NO Jakarta EE dependencies (they're serialized/replayed)
    - Package by feature: each workflow lives in its own package
 
 3. **Code Organization**
    - Each workflow gets its own package under `workflows/`
    - Package includes: interfaces, implementations, data models, worker, tests
    - Data models use records with validation annotations if needed
-   - Workers are standalone main classes (run separately)
+   - Workers are standalone main classes (run separately) or (in Wildfly) started in `TemporalWorkerManager`.
 
 4. **Testing Requirements**
    - Write unit tests for activities (mock external dependencies)
@@ -382,10 +400,10 @@ class MyWorkflowTest {
 1. Create package: `src/main/java/com/example/temporal/workflows/myworkflow/`
 2. Create data models (records): `MyWorkflowInput`, `MyWorkflowOutput`, etc.
 3. Create activity interface: `MyActivities.java` with `@ActivityInterface`
-4. Create activity implementation: `MyActivitiesImpl.java` as Spring `@Component`
+4. Create activity implementation: `MyActivitiesImpl.java` as Jakarta `@ApplicationScoped`
 5. Create workflow interface: `MyWorkflow.java` with `@WorkflowInterface` and `@WorkflowMethod`
-6. Create workflow implementation: `MyWorkflowImpl.java` (no Spring annotations!)
-7. Create worker: `MyWorker.java` with main method and task queue constant
+6. Create workflow implementation: `MyWorkflowImpl.java` (no Jakarta EE annotations!)
+7. Create worker: `MyWorker.java` with main method and task queue constant or add an entry in the TemporalWorkerManager.
 8. Create tests: `MyActivitiesTest.java` (unit) and `MyWorkflowTest.java` (integration)
 9. Update README.md with usage examples
 10. Run quality checks: `./gradlew qualityCheck`
@@ -431,10 +449,10 @@ Then sync: `./gradlew build --refresh-dependencies`
 
 ### Temporal-Specific Constraints
 
-1. **Never inject Spring beans into workflows**
+1. **Never inject Jakarta EE beans into workflows**
    - Workflows are serialized and replayed
    - Only activity stubs can be used in workflows
-   - Move all Spring dependencies to activities
+   - Move all Jakarta EE dependencies to activities
 
 2. **Always use Workflow.* methods in workflows**
    - Time: `Workflow.currentTimeMillis()`, `Workflow.sleep()`
@@ -447,14 +465,14 @@ Then sync: `./gradlew build --refresh-dependencies`
    - Consider `HeartbeatTimeout` for long activities
    - Configure retry policies for transient failures
 
-4. **Testing is different from traditional Spring Boot**
-   - Use `TestWorkflowEnvironment`, not `@SpringBootTest` for workflows
+4. **Testing is different from traditional Jakarta EE**
+   - Use `TestWorkflowEnvironment`, not `@Arquillian` or similar for workflows
    - Mock activities, not external services in workflow tests
    - Time-skipping allows testing long-running workflows instantly
 
 ### Build System
 
-- **Gradle 8.11.1** with Groovy DSL (not Kotlin DSL)
+- **Gradle 9.5.1** with Groovy DSL (not Kotlin DSL)
 - **Java 21 Toolchain**: Auto-provisioned via Foojay Resolver
 - **Build tasks**: `build`, `test`, `qualityCheck`, `spotlessApply`
 - **Worker tasks**: `runHttpWorker`, `runCrawlerWorker` (JavaExec tasks)
@@ -463,14 +481,14 @@ Then sync: `./gradlew build --refresh-dependencies`
 
 - Source: `src/main/java/com/example/temporal/`
 - Tests: `src/test/java/com/example/temporal/`
-- Resources: `src/main/resources/` (application.yml)
+- Resources: `src/main/resources/` (application.yml, microprofile-config.properties)
 - Config: `config/checkstyle/`, `config/spotbugs/`
 - Docs: `docs/` (patterns, testing guides)
 
 ## Common Pitfalls to Avoid
 
 1. ❌ **Don't use `System.currentTimeMillis()` in workflows** → Use `Workflow.currentTimeMillis()`
-2. ❌ **Don't inject Spring beans into workflow implementations** → Use activities instead
+2. ❌ **Don't inject Jakarta EE beans into workflow implementations** → Use activities instead
 3. ❌ **Don't use `Thread.sleep()` in workflows** → Use `Workflow.sleep()`
 4. ❌ **Don't use standard logger in workflows** → Use `Workflow.getLogger()`
 5. ❌ **Don't forget activity timeouts** → Always set `StartToCloseTimeout`
@@ -482,9 +500,8 @@ Then sync: `./gradlew build --refresh-dependencies`
 
 - [Temporal Java SDK Documentation](https://docs.temporal.io/dev-guide/java)
 - [Temporal Best Practices](https://docs.temporal.io/kb)
-- [Spring Boot Documentation](https://spring.io/projects/spring-boot)
+- [Jakarta EE Documentation](https://jakarta.ee/specifications/platform/11/)
 - [Project README](README.md) - User-facing documentation
-- [CLAUDE.md](CLAUDE.md) - Claude Code assistant guide
 - [docs/temporal-patterns.md](docs/temporal-patterns.md) - Pattern reference
 - [docs/testing.md](docs/testing.md) - Testing guide
 

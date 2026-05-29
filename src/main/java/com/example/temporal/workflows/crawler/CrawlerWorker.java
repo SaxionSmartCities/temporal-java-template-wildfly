@@ -8,7 +8,8 @@ import io.temporal.worker.WorkerFactory;
 import io.temporal.worker.WorkerOptions;
 
 /**
- * Standalone worker for the crawler workflow.
+ * Standalone worker for the crawler workflow. When started by Wildfly, this class is not used.
+ * Instead, the worker is started by the singleton startup bean TemporalWorkerManager.
  *
  * <p>This worker polls the "crawler-task-queue" and executes crawler workflows and activities. Run
  * this class directly to start the worker.

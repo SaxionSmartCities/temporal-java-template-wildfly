@@ -6,7 +6,9 @@
 
 ## Introduction
 
-A modern, production-ready template for building Temporal applications using [Temporal Java SDK](https://docs.temporal.io/dev-guide/java). This template provides a solid foundation for developing Workflow-based applications with comprehensive testing, code quality tools, and modern Java tooling.
+A modern, production-ready template for building Temporal applications using [Temporal Java SDK](https://docs.temporal.io/dev-guide/java). 
+This template provides a solid foundation for developing Workflow-based applications with comprehensive 
+testing, code quality tools, and modern Java tooling.
 
 ### What's Included
 
@@ -20,7 +22,7 @@ A modern, production-ready template for building Temporal applications using [Te
 ### Prerequisites
 
 - Java 21 or higher
-- Gradle 8.x (wrapper included)
+- Gradle 9.x (wrapper included)
 - [Temporal CLI](https://docs.temporal.io/cli#install)
 
 ### Quick Start
@@ -68,7 +70,8 @@ A modern, production-ready template for building Temporal applications using [Te
 ### Next Steps
 
 - Check out some example prompts to generate Temporal Workflows using your favorite AI tool.
-- After you have built your first Temporal Workflow, read [DEVELOPERS.md](./DEVELOPERS.md) to learn about development tips & tricks using this template.
+- After you have built your first Temporal Workflow, read [DEVELOPERS.md](./DEVELOPERS.md) to learn about development 
+  tips & tricks using this template.
 - See [`docs/temporal-patterns.md`](./docs/temporal-patterns.md) for advanced Temporal patterns
 - Check [`docs/testing.md`](./docs/testing.md) for Temporal testing best practices
 
@@ -80,9 +83,9 @@ Demonstrates a simple workflow that executes an HTTP GET request through an acti
 
 **Key Features:**
 - 3-second activity timeout
-- RestTemplate-based HTTP client
+- Jakarta REST-based HTTP client
 - Error handling and logging
-- Spring Boot integration support
+- Retry on failed url resolving (which might be incorrect by the way)
 
 **Task Queue:** `http-task-queue`
 
@@ -92,6 +95,7 @@ Demonstrates a complex workflow with parallel execution and stateful logic.
 
 **Key Features:**
 - Breadth-first crawling algorithm
+- Use HttpUrlConnection for connections
 - Parallel URL fetching (up to 10 concurrent)
 - Configurable max links limit (default: 10)
 - Domain tracking across crawled content
@@ -153,17 +157,19 @@ Demonstrates a complex workflow with parallel execution and stateful logic.
 
 ### Temporal Connection
 
-Edit `src/main/resources/application.yml`:
+Edit `src/main/resources/microprofile-config.properties`:
 
-```yaml
-temporal:
-  service-address: localhost:7233  # Temporal server address
-  namespace: default               # Temporal namespace
+```properties
+temporal.service-address=${TEMPORAL_SERVICE_ADDRESS:localhost:7233}
+temporal.namespace=${TEMPORAL_NAMESPACE:default}
+temporal.cert-path=${TEMPORAL_CERT_PATH:}
+temporal.key-path=${TEMPORAL_KEY_PATH:}
 ```
 
 ### Temporal Cloud (mTLS)
 
-For production deployments using Temporal Cloud, the application automatically detects and configures mTLS when certificate paths are provided via environment variables.
+For production deployments using Temporal Cloud, the application automatically detects and configures mTLS when 
+certificate paths are provided via environment variables.
 
 **Set environment variables:**
 
@@ -186,7 +192,8 @@ The application will automatically:
 - Configure mTLS for Temporal Cloud connection
 - Fall back to local connection if certificates are not provided
 
-**Note**: For local development, no configuration is needed. The application defaults to `localhost:7233` with namespace `default`.
+**Note**: For local development, no configuration is needed. The application defaults to `localhost:7233` with 
+namespace `default`.
 
 ### Worker Configuration
 
@@ -194,6 +201,8 @@ Workers are configured in their respective `*Worker.java` files:
 
 - **HTTP Worker**: Standard worker configuration
 - **Crawler Worker**: 16 concurrent activity execution threads for parallel crawling
+
+For Wildfly the workers are also defined in `TemporalWorkerManagers.java`.
 
 ## Testing
 
@@ -221,12 +230,13 @@ See [docs/temporal-patterns.md](docs/temporal-patterns.md) for detailed patterns
 ## Tech Stack
 
 - **Java 21**: LTS version with modern language features
-- **Spring Boot 3.3.6**: Application framework and dependency injection
-- **Temporal SDK 1.25.2**: Workflow orchestration
-- **Gradle 8.11.1**: Build automation
+- **Jakarta EE 11**: Application framework and dependency injection
+- **Wildfly 40**: Application server implementating Jakarta 11
+- **Temporal SDK 1.35.0**: Workflow orchestration
+- **Gradle 9.5.1**: Build automation
 - **JUnit 5**: Testing framework
 - **Mockito**: Mocking framework
-- **RestTemplate**: HTTP client
+- **Jakart Rest**: HTTP client
 
 ## Code Quality Tools
 

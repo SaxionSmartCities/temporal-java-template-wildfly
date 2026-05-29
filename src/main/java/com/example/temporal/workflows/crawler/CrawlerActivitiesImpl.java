@@ -1,5 +1,6 @@
 package com.example.temporal.workflows.crawler;
 
+import jakarta.enterprise.context.ApplicationScoped;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -13,14 +14,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 /**
  * Implementation of crawler activities for fetching URLs and parsing links.
  *
  * <p>This class handles HTTP requests, HTML parsing, and link extraction.
  */
-@Component
+@ApplicationScoped
 public class CrawlerActivitiesImpl implements CrawlerActivities {
 
   private static final Logger logger = LoggerFactory.getLogger(CrawlerActivitiesImpl.class);

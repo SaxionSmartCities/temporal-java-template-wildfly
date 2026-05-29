@@ -1,49 +1,43 @@
 package com.example.temporal.workflows.http;
 
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.ClientBuilder;
+import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestTemplate;
 
-/**
- * Implementation of HTTP activities using Spring's RestTemplate.
- *
- * <p>This class can be used as a Spring bean or instantiated directly in workers.
- */
-@Component
+/** Implementation of HTTP activities using Jakarta REST Client. */
+@ApplicationScoped
 public class HttpActivitiesImpl implements HttpActivities {
 
   private static final Logger logger = LoggerFactory.getLogger(HttpActivitiesImpl.class);
 
-  private final RestTemplate restTemplate;
+  private final Client client;
 
-  /**
-   * Constructor with RestTemplate dependency injection.
-   *
-   * @param restTemplate The RestTemplate to use for HTTP requests
-   */
-  public HttpActivitiesImpl(RestTemplate restTemplate) {
-    this.restTemplate = restTemplate;
+  /** Default constructor that creates a Jakarta REST Client instance. */
+  public HttpActivitiesImpl() {
+    this.client = ClientBuilder.newClient();
   }
 
   /**
-   * Default constructor that creates a RestTemplate instance. Useful for standalone workers that
-   * don't use Spring dependency injection.
+   * Constructor with Client injection.
+   *
+   * @param client The Client to use for HTTP requests
    */
-  public HttpActivitiesImpl() {
-    this.restTemplate = new RestTemplate();
+  @Inject
+  public HttpActivitiesImpl(Client client) {
+    this.client = client;
   }
 
   @Override
   public HttpGetActivityOutput httpGet(HttpGetActivityInput input) {
     logger.info("Performing HTTP GET request to URL: {}", input.url());
 
-    try {
-      ResponseEntity<String> response = restTemplate.getForEntity(input.url(), String.class);
-
-      String responseText = response.getBody() != null ? response.getBody() : "";
-      int statusCode = response.getStatusCode().value();
+    try (Response response = client.target(input.url()).request().get()) {
+      String responseText = response.readEntity(String.class);
+      int statusCode = response.getStatus();
 
       logger.info("HTTP GET request completed with status code: {}", statusCode);
 

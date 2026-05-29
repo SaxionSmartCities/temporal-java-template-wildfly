@@ -5,31 +5,35 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.client.Client;
+import jakarta.ws.rs.client.Invocation;
+import jakarta.ws.rs.client.WebTarget;
+import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 
 /**
  * Unit tests for HttpActivitiesImpl.
  *
- * <p>These tests use Mockito to mock RestTemplate and verify activity behavior.
+ * <p>These tests use Mockito to mock Jakarta REST Client and verify activity behavior.
  */
 @ExtendWith(MockitoExtension.class)
 class HttpActivitiesTest {
 
-  @Mock private RestTemplate restTemplate;
+  @Mock private Client client;
+  @Mock private WebTarget webTarget;
+  @Mock private Invocation.Builder builder;
+  @Mock private Response response;
 
   private HttpActivitiesImpl activities;
 
   @BeforeEach
   void setUp() {
-    activities = new HttpActivitiesImpl(restTemplate);
+    activities = new HttpActivitiesImpl(client);
   }
 
   @Test
@@ -37,9 +41,12 @@ class HttpActivitiesTest {
     // Arrange
     String url = "https://example.com";
     String responseBody = "<html><body>Hello World</body></html>";
-    ResponseEntity<String> responseEntity = new ResponseEntity<>(responseBody, HttpStatus.OK);
 
-    when(restTemplate.getForEntity(url, String.class)).thenReturn(responseEntity);
+    when(client.target(url)).thenReturn(webTarget);
+    when(webTarget.request()).thenReturn(builder);
+    when(builder.get()).thenReturn(response);
+    when(response.readEntity(String.class)).thenReturn(responseBody);
+    when(response.getStatus()).thenReturn(200);
 
     // Act
     HttpGetActivityInput input = new HttpGetActivityInput(url);
@@ -55,9 +62,12 @@ class HttpActivitiesTest {
   void testHttpGet_EmptyResponse() {
     // Arrange
     String url = "https://example.com";
-    ResponseEntity<String> responseEntity = new ResponseEntity<>(null, HttpStatus.OK);
 
-    when(restTemplate.getForEntity(url, String.class)).thenReturn(responseEntity);
+    when(client.target(url)).thenReturn(webTarget);
+    when(webTarget.request()).thenReturn(builder);
+    when(builder.get()).thenReturn(response);
+    when(response.readEntity(String.class)).thenReturn("");
+    when(response.getStatus()).thenReturn(200);
 
     // Act
     HttpGetActivityInput input = new HttpGetActivityInput(url);
@@ -74,10 +84,12 @@ class HttpActivitiesTest {
     // Arrange
     String url = "https://example.com";
     String responseBody = "Not Found";
-    ResponseEntity<String> responseEntity =
-        new ResponseEntity<>(responseBody, HttpStatus.NOT_FOUND);
 
-    when(restTemplate.getForEntity(url, String.class)).thenReturn(responseEntity);
+    when(client.target(url)).thenReturn(webTarget);
+    when(webTarget.request()).thenReturn(builder);
+    when(builder.get()).thenReturn(response);
+    when(response.readEntity(String.class)).thenReturn(responseBody);
+    when(response.getStatus()).thenReturn(404);
 
     // Act
     HttpGetActivityInput input = new HttpGetActivityInput(url);
@@ -93,11 +105,12 @@ class HttpActivitiesTest {
   void testHttpGet_NetworkError() {
     // Arrange
     String url = "https://invalid-url.com";
-    when(restTemplate.getForEntity(url, String.class))
-        .thenThrow(new RestClientException("Connection refused"));
+    when(client.target(url)).thenReturn(webTarget);
+    when(webTarget.request()).thenReturn(builder);
+    when(builder.get()).thenThrow(new WebApplicationException("Connection refused"));
 
     // Act & Assert
     HttpGetActivityInput input = new HttpGetActivityInput(url);
-    assertThrows(RestClientException.class, () -> activities.httpGet(input));
+    assertThrows(WebApplicationException.class, () -> activities.httpGet(input));
   }
 }

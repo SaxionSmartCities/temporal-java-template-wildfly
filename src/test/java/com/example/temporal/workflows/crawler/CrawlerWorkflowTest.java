@@ -7,11 +7,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.example.temporal.TestConfig;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.testing.TestWorkflowEnvironment;
 import io.temporal.worker.Worker;
+import jakarta.enterprise.inject.spi.CDI;
 import java.util.List;
+import org.jboss.weld.junit5.auto.AddBeanClasses;
+import org.jboss.weld.junit5.auto.EnableAutoWeld;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +25,8 @@ import org.junit.jupiter.api.Test;
  *
  * <p>These tests use TestWorkflowEnvironment to test the workflow with mocked activities.
  */
+@EnableAutoWeld
+@AddBeanClasses({TestConfig.class})
 class CrawlerWorkflowTest {
 
   private TestWorkflowEnvironment testEnv;
@@ -29,7 +35,7 @@ class CrawlerWorkflowTest {
 
   @BeforeEach
   void setUp() {
-    testEnv = TestWorkflowEnvironment.newInstance();
+    testEnv = CDI.current().select(TestWorkflowEnvironment.class).get();
     worker = testEnv.newWorker(CrawlerWorker.TASK_QUEUE);
     worker.registerWorkflowImplementationTypes(CrawlerWorkflowImpl.class);
     client = testEnv.getWorkflowClient();
@@ -37,7 +43,7 @@ class CrawlerWorkflowTest {
 
   @AfterEach
   void tearDown() {
-    testEnv.close();
+    // Closed by TestConfig
   }
 
   @Test

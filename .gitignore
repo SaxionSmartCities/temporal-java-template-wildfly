@@ -58,7 +58,6 @@ logs/
 *.temp
 *.swp
 *.swo
-*~
 
 # Local environment files
 .env
@@ -72,3 +71,4 @@ test-output/
 # Coverage reports
 .jacoco/
 *.exec
+

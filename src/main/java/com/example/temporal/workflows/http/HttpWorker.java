@@ -7,7 +7,8 @@ import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
 
 /**
- * Standalone worker for the HTTP workflow.
+ * Standalone worker for the HTTP workflow. When started by Wildfly, this class is not used.
+ * Instead, the worker is started by the singleton startup bean TemporalWorkerManager.
  *
  * <p>This worker polls the "http-task-queue" and executes HTTP workflows and activities. Run this
  * class directly to start the worker.
