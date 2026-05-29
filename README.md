@@ -10,6 +10,14 @@ A modern, production-ready template for building Temporal applications using [Te
 This template provides a solid foundation for developing Workflow-based applications with comprehensive 
 testing, code quality tools, and modern Java tooling.
 
+This is a fork of the original [Temporal Java Template](https://github.com/temporal-sa/temporal-java-template) with the 
+following changes:
+- Wildfly 40 as application server, runs also the Temporal worker
+- Jakarta EE 11 as application framework
+- Jakarta REST-based HTTP client
+- MicroProfile Config for configuration
+
+
 ### What's Included
 
 - Complete testing setup (JUnit 5, Mockito) with `TestWorkflowEnvironment`
@@ -30,8 +38,8 @@ testing, code quality tools, and modern Java tooling.
 1. **Clone and setup the project:**
 
    ```bash
-   git clone https://github.com/temporal-sa/temporal-java-template.git
-   cd temporal-java-template
+   git clone https://github.com/SaxionSmartCities/temporal-java-template-wildfly.git
+   cd temporal-java-template-wildfly
    ./gradlew build
    ```
 
